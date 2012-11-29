@@ -66,20 +66,42 @@ put(Bucket, Key, Value) ->
         end,
     riakpool:execute(Fun), ok.
 
+
+add_index_to_obj(Obj, Index) ->
+    Metadata = dict:store(<<"index">>, Index, dict:new()),
+    NewObj = riakc_obj:update_metadata(Obj, Metadata),
+    Fun = 
+        fun(C) -> 
+            riakc_pb_socket:put(C, NewObj)
+        end,
+    riakpool:execute(Fun), ok.
+
+add_index_to_key(Bucket, Key, Index) ->
+    Metadata = dict:store(<<"index">>, Index, dict:new()),
+    Fun = 
+        fun(C) -> 
+            case riakc_pb_socket:get(C, Bucket, Key) of
+                {ok, Obj} ->    NewObj = riakc_obj:update_metadata(Obj, Metadata),
+                                riakc_pb_socket:put(C, NewObj);
+                {error, E} -> {error, E}
+            end
+        end,
+    riakpool:execute(Fun), ok.
+
 %% @doc Returns the value associated with `Key' in `Bucket' as `{ok, binary()}'.
 %% If an error was encountered or the value was not present, returns
 %% `{error, any()}'.
--spec get_index(binary(), binary(), binary()) -> {ok, binary()} | {error, any()}.
+-spec get_index(binary(), binary(), binary()) -> {ok, list()} | {error, any()}.
 get_index(Bucket, Index, Key) ->
     Fun =
         fun(C) ->
             case riakc_pb_socket:get_index(C, Bucket, Index, Key) of
-                {ok, O} -> riakc_obj:get_value(O);
+                {ok, A} -> lists:foreach(fun(O) -> get(Bucket, O) end, A); 
                 {error, E} -> {error, E}
             end
         end,
     case riakpool:execute(Fun) of
-        {ok, Value} when is_binary(Value) -> {ok, Value};
+        {ok, Value} when is_list(Value) -> {ok, Value};
         {ok, {error, E}} -> {error, E};
         {error, E} -> {error, E}
     end.
