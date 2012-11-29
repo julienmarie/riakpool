@@ -66,6 +66,24 @@ put(Bucket, Key, Value) ->
         end,
     riakpool:execute(Fun), ok.
 
+%% @doc Returns the value associated with `Key' in `Bucket' as `{ok, binary()}'.
+%% If an error was encountered or the value was not present, returns
+%% `{error, any()}'.
+-spec get_index(binary(), binary(), binary()) -> {ok, binary()} | {error, any()}.
+get_index(Bucket, Index, Key) ->
+    Fun =
+        fun(C) ->
+            case riakc_pb_socket:get_index(C, Bucket, Index, Key) of
+                {ok, O} -> riakc_obj:get_value(O);
+                {error, E} -> {error, E}
+            end
+        end,
+    case riakpool:execute(Fun) of
+        {ok, Value} when is_binary(Value) -> {ok, Value};
+        {ok, {error, E}} -> {error, E};
+        {error, E} -> {error, E}
+    end.
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
